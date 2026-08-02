@@ -1,0 +1,28 @@
+🎯 Volume Momentum Bot v1.0.0
+
+Automated trading bot using Volume Momentum strategy.
+RSI of Volume + EMA crossover + Price Momentum.
+
+✅ Works with Binance (BTC/USDT and any pair)
+✅ Dry-run mode for safe testing
+✅ Risk management built-in (1% risk, 2% SL, 4% TP)
+✅ Backtesting engine included
+✅ Full documentation
+
+💰 Pricing:
+• Personal license: $29.99
+• Commercial license: $79.99
+• Setup + Bot: $49.99
+
+📦 What's included:
+• bot.py - Main trading bot
+• strategy.py - Volume Momentum strategy
+• risk_manager.py - Risk management
+• binance_connector.py - Binance API integration
+• backtester.py - Backtesting engine
+• volume_momentum_v1.pine - TradingView indicator
+• README + full documentation
+
+⚡ Setup time: 5 minutes
+
+Contact: mathialuke@gmail.com or @DREstebot

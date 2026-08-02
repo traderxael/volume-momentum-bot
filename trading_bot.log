@@ -1,0 +1,2 @@
+2026-08-02 12:08:50,871 - VolumeMomentumBot - ERROR - Failed to connect to Binance: API Secret required for private endpoints
+2026-08-02 12:08:50,874 - VolumeMomentumBot - WARNING - No Binance connection. Returning empty data.

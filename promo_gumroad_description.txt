@@ -1,0 +1,24 @@
+Volume Momentum Bot v1.0.0
+
+An automated trading bot that uses the Volume Momentum strategy to generate buy/sell signals on Binance.
+
+Strategy combines:
+• RSI of Volume (measures volume strength)
+• EMA crossover (confirms trend direction)
+• Price momentum filter (avoids counter-trend signals)
+• Volume ratio filter (only trades when volume confirms)
+
+Includes:
+• Full Python bot with Binance API integration
+• TradingView indicator (Pine Script)
+• Backtesting engine
+• Risk management (configurable)
+• Dry-run mode
+• Trading journal template
+
+Requirements:
+• Python 3.8+
+• Binance account with API keys
+• $100+ starting capital recommended
+
+Support: mathialuke@gmail.com

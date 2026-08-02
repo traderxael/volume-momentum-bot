@@ -1,0 +1,34 @@
+Subject: Volume Momentum Bot — Automated Trading Bot ($29.99)
+
+Hi,
+
+I've built an automated trading bot called Volume Momentum Bot.
+
+It uses a strategy combining:
+• RSI of Volume (measures volume strength, not just price)
+• EMA trend confirmation (9/21)
+• Price momentum filter (10-period)
+• Volume ratio filter (only trades when volume > 1.5x average)
+
+The bot includes:
+• Full Python source code
+• Binance API integration (dry-run + live)
+• Backtesting engine
+• Risk management (1% risk, 2% SL, 4% TP)
+• TradingView indicator (companion)
+• Trading journal template
+• Full documentation
+
+Setup takes ~5 minutes.
+
+Pricing:
+• Personal license: $29.99
+• Commercial license: $79.99
+• Setup + Bot: $49.99
+
+Get it here: [LINK]
+
+Questions? Reach out: mathialuke@gmail.com
+
+Best,
+Axael
