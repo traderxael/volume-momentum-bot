@@ -1,0 +1,9 @@
+🤖 New: Volume Momentum Bot — automated crypto trading bot
+
+Strategy: RSI of Volume + EMA crossover + Price Momentum
+Platform: Binance
+Risk: 1% per trade, 2% SL, 4% TP (2:1 R:R)
+Dry-run mode included
+
+$29.99 personal | $79.99 commercial
+DM for details 📩
