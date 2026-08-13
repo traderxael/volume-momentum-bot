@@ -1,0 +1,129 @@
+//@version=5
+indicator("Volume Momentum V1 — Axael", overlay=false, max_labels_count=500)
+
+// ═══════════════════════════════════════════════════════════════
+//  VOLUME MOMENTUM V1 — Indicador de Momento con Volumen
+//  Creado por Axael — Calama, Chile
+//  Basado en: RSI de volumen + cruce de medias + confirmación
+//  de momentum de precio.
+//  Licencia: Uso personal y comercial
+// ═══════════════════════════════════════════════════════════════
+
+// ── INPUTS ──────────────────────────────────────────────────────
+grp_momentum   = "⚙️ Momento de Precio"
+rsi_len        = input.int(14, "Período RSI", minval=2, maxval=100, group=grp_momentum)
+rsi_ob         = input.int(70, "Nivel sobrecompra", minval=50, maxval=100, group=grp_momentum)
+rsi_os         = input.int(30, "Nivel sobreventa", minval=0, maxval=50, group=grp_momentum)
+ema_fast_len   = input.int(9, "EMA rápida", minval=2, maxval=50, group=grp_momentum)
+ema_slow_len   = input.int(21, "EMA lenta", minval=5, maxval=200, group=grp_momentum)
+
+grp_volume     = "📊 Volumen"
+vol_len        = input.int(20, "Período volumen promedio", minval=5, maxval=100, group=grp_volume)
+vol_mult       = input.float(1.5, "Multiplicador volumen", minval=1.0, maxval=5.0, step=0.1, group=grp_volume)
+
+grp_signals    = "📨 Señales"
+show_labels    = input.bool(true, "Mostrar etiquetas", group=grp_signals)
+show_alerts    = input.bool(true, "Mostrar alertas en gráfico", group=grp_signals)
+alert_cooldown = input.int(3, "Cooldown alertas (velas)", minval=1, maxval=20, group=grp_signals)
+
+grp_visual     = "🎨 Visual"
+bull_color     = input.color(#00FF88, "Color compra", group=grp_visual)
+bear_color     = input.color(#FF3366, "Color venta", group=grp_visual)
+neutral_color  = input.color(#666666, "Color neutral", group=grp_visual)
+bg_color       = input.color(#0a0a0a, "Color fondo", group=grp_visual)
+
+// ── CÁLCULOS PRINCIPALES ────────────────────────────────────────
+
+// RSI de Volumen — mide la fuerza del volumen relativo
+vol_change    = volume - volume[1]
+vol_gain      = math.max(vol_change, 0)
+vol_loss      = math.max(-vol_change, 0)
+rs_vol        = ta.rma(vol_gain, vol_len) / ta.rma(vol_loss, vol_len)
+rsi_vol       = 100 - (100 / (1 + rs_vol))
+
+// EMA de precio para tendencia
+ema_fast      = ta.ema(close, ema_fast_len)
+ema_slow      = ta.ema(close, ema_slow_len)
+trend_up      = ema_fast > ema_slow
+
+// Momentum de precio (cambio porcentual)
+mom_period    = 10
+price_mom     = (close - close[mom_period]) / close[mom_period] * 100
+
+// Volumen relativo vs promedio
+vol_avg       = ta.sma(volume, vol_len)
+vol_ratio     = volume / vol_avg
+
+// ── CONDICIONES DE SEÑAL ────────────────────────────────────────
+
+// Compra: RSI vol sobreventa + volumen alto + momentum positivo + tendencia alcista
+buy_signal  = rsi_vol < rsi_os and vol_ratio > vol_mult and price_mom > 0 and trend_up
+// Venta: RSI vol sobrecompra + volumen alto + momentum negativo + tendencia bajista
+sell_signal = rsi_vol > rsi_ob and vol_ratio > vol_mult and price_mom < 0 and not trend_up
+
+// Cooldown para evitar señales repetidas
+var int last_signal_bar = 0
+cooldown_ok = bar_index - last_signal_bar >= alert_cooldown
+
+// ── PLOT ────────────────────────────────────────────────────────
+
+// Fondo del panel según momentum
+bgcolor(buy_signal ? color.new(bull_color, 85) : sell_signal ? color.new(bear_color, 85) : na, title="Fondo señal")
+
+// Línea RSI de volumen
+plot(rsi_vol, "RSI Volumen", color=neutral_color, linewidth=2)
+hline(rsi_ob, "Sobrecompra", color=color.new(bear_color, 50), linestyle=hline.style_dotted)
+hline(rsi_os, "Sobreventa", color=color.new(bull_color, 50), linestyle=hline.style_dotted)
+hline(50, "Neutral", color=color.new(neutral_color, 70), linestyle=hline.style_dashed)
+
+// Barras de volumen coloreadas
+vol_bar_color = buy_signal ? bull_color : sell_signal ? bear_color : volume > vol_avg ? color.new(bull_color, 40) : color.new(bear_color, 40)
+barcolor(vol_bar_color, title="Color volumen")
+
+// ── ETIQUETAS ────────────────────────────────────────────────────
+
+var label last_buy_label  = na
+var label last_sell_label = na
+
+if buy_signal and show_labels and cooldown_ok
+    label.delete(last_buy_label)
+    last_buy_label := label.new(bar_index, low, "▲ COMPRA", style=label.style_label_up, color=bull_color, textcolor=color.white, size=size.small)
+    last_signal_bar := bar_index
+
+if sell_signal and show_labels and cooldown_ok
+    label.delete(last_sell_label)
+    last_sell_label := label.new(bar_index, high, "▼ VENTA", style=label.style_label_down, color=bear_color, textcolor=color.white, size=size.small)
+    last_signal_bar := bar_index
+
+// ── ALERTAS ─────────────────────────────────────────────────────
+
+alertcondition(buy_signal, title="🟢 Señal de COMPRA", message="Volume Momentum V1: Señal de COMPRA en {{ticker}} | RSI Vol: {{rsi_vol}} | Vol Ratio: {{vol_ratio}}")
+alertcondition(sell_signal, title="🔴 Señal de VENTA", message="Volume Momentum V1: Señal de VENTA en {{ticker}} | RSI Vol: {{rsi_vol}} | Vol Ratio: {{vol_ratio}}")
+alertcondition(crossover(rsi_vol, rsi_os), title="RSI Vol cruza sobreventa", message="RSI de volumen cruza zona de sobreventa en {{ticker}}")
+alertcondition(crossover(rsi_ob, rsi_vol), title="RSI Vol cruza sobrecompra", message="RSI de volumen cruza zona de sobrecompra en {{ticker}}")
+
+// ── INFO TABLE ────────────────────────────────────────────────
+var table info_table = table.new(position.top_right, 2, 6, bgcolor=bg_color, border_width=1, border_color=color.new(neutral_color, 50))
+
+if barstate.islast
+    table.cell(info_table, 0, 0, "RSI Vol", text_color=neutral_color, text_size=size.small)
+    table.cell(info_table, 1, 0, str.tostring(rsi_vol, "#.1"), text_color=rsi_vol < rsi_os ? bull_color : rsi_vol > rsi_ob ? bear_color : neutral_color, text_size=size.small)
+    table.cell(info_table, 0, 1, "Vol Ratio", text_color=neutral_color, text_size=size.small)
+    table.cell(info_table, 1, 1, str.tostring(vol_ratio, "#.2x"), text_color=vol_ratio > vol_mult ? bull_color : neutral_color, text_size=size.small)
+    table.cell(info_table, 0, 2, "Momentum %", text_color=neutral_color, text_size=size.small)
+    table.cell(info_table, 1, 2, str.tostring(price_mom, "#.2f%"), text_color=price_mom > 0 ? bull_color : bear_color, text_size=size.small)
+    table.cell(info_table, 0, 3, "Tendencia", text_color=neutral_color, text_size=size.small)
+    table.cell(info_table, 1, 3, trend_up ? "▲ Alcista" : "▼ Bajista", text_color=trend_up ? bull_color : bear_color, text_size=size.small)
+    table.cell(info_table, 0, 4, "Vol Prom.", text_color=neutral_color, text_size=size.small)
+    table.cell(info_table, 1, 4, str.tostring(vol_avg, "#.0f"), text_color=neutral_color, text_size=size.small)
+    table.cell(info_table, 0, 5, "Última señal", text_color=neutral_color, text_size=size.small)
+    table.cell(info_table, 1, 5, last_signal_bar > 0 ? str.tostring(bar_index - last_signal_bar) + " velas ago" : "N/A", text_color=neutral_color, text_size=size.small)
+
+// ═══════════════════════════════════════════════════════════════
+//  INSTRUCCIONES DE USO
+//  1. Copia este código en TradingView → Pine Editor
+//  2. Pega y haz clic en "Add to chart"
+//  3. Configura los parámetros en el icono de engranaje
+//  4. Para alerts: configura en la sección de alertas de TradingView
+//  5. Funciona mejor en temporalidades de 1m a 4H
+// ═══════════════════════════════════════════════════════════════
