@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: Python smoke test
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compilar todos los modulos (detecta errores de sintaxis)
+        run: python -m compileall -q strategy.py risk_manager.py backtester.py run_backtest.py binance_connector.py bot.py generate_promo.py
+
+      - name: Smoke test de la estrategia y el gestor de riesgo
+        run: |
+          python -c "
+          import strategy, risk_manager
+          s = strategy.VolumeMomentumStrategy()
+          r = risk_manager.RiskManager()
+          print('strategy:', type(s).__name__)
+          print('risk_manager:', type(r).__name__)
+          assert hasattr(s, 'generate_signals'), 'falta generate_signals'
+          assert hasattr(r, 'check_stop_loss'), 'falta check_stop_loss'
+          assert hasattr(r, 'check_take_profit'), 'falta check_take_profit'
+          print('OK: la API publica del bot esta intacta')
+          "
+
+      - name: Backtest de humo sobre datos sinteticos (sin red)
+        run: |
+          python -c "
+          import numpy as np, pandas as pd
+          from strategy import VolumeMomentumStrategy
+          from risk_manager import RiskManager
+
+          n = 300
+          rng = np.random.default_rng(42)
+          close = pd.Series(100 + np.cumsum(rng.normal(0, 1, n)))
+          df = pd.DataFrame({
+              'close': close,
+              'high': close * 1.01,
+              'low': close * 0.99,
+              'open': close.shift(1).fillna(close.iloc[0]),
+              'volume': rng.integers(1000, 5000, n).astype(float),
+          })
+          out = VolumeMomentumStrategy().generate_signals(df.copy())
+          assert 'signal' in out.columns, 'generate_signals no devolvio la columna signal'
+          RiskManager()
+          print('OK: backtest de humo corrio sobre', len(out), 'velas sinteticas')
+          "
