@@ -17,6 +17,11 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Requerido por actions/deploy-pages: sin esto la API devuelve
+    # 400 "Missing environment" y el deploy de Pages falla.
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,4 +35,5 @@ jobs:
           path: '.'
 
       - name: Deploy to GitHub Pages
+        id: deployment
         uses: actions/deploy-pages@v4
