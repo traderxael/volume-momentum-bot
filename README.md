@@ -1,5 +1,9 @@
 # Volume Momentum Bot
 
+> **Aviso de riesgo:** software experimental con fines educativos. Corre en modo
+> dry-run por defecto. Operar en vivo puede perder todo el capital. No es
+> asesoría financiera.
+
 Automated trading bot using Volume Momentum strategy (RSI of Volume + EMA crossover + Price Momentum).
 
 ## Features
@@ -39,4 +43,4 @@ Sell when: RSI Vol > 70 AND Volume > 1.5x avg AND Momentum < 0 AND Trend = Down
 - Cooldown between signals
 
 ## License
-MIT
+CC BY-NC 4.0 — uso no comercial. Para uso comercial, ver `SELLING.md`.
