@@ -6,6 +6,7 @@ import os
 import logging
 import pandas as pd
 from datetime import datetime, timedelta
+from decimal import Decimal, ROUND_DOWN
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -21,11 +22,12 @@ logging.basicConfig(
 logger = logging.getLogger('VolumeMomentumBot')
 
 class BinanceConnector:
-    def __init__(self):
+    def __init__(self, dry_run=None):
         self.api_key = os.getenv('BINANCE_API_KEY')
         self.api_secret = os.getenv('BINANCE_API_SECRET')
-        self.dry_run = os.getenv('DRY_RUN', 'True').lower() == 'true'
+        self.dry_run = dry_run if dry_run is not None else os.getenv('DRY_RUN', 'True').lower() == 'true'
         self.client = None
+        self._filters = {}
         self._connect()
 
     def _connect(self):
@@ -85,8 +87,36 @@ class BinanceConnector:
             logger.error(f"Error getting balance: {e}")
             return {}
 
+    def _round_quantity(self, symbol, quantity):
+        """Round quantity down to the symbol LOT_SIZE step."""
+        if self.client is None:
+            return quantity
+        try:
+            filters = self._filters.get(symbol)
+            if filters is None:
+                info = self.client.get_symbol_info(symbol)
+                filters = {f['filterType']: f for f in (info or {}).get('filters', [])}
+                self._filters[symbol] = filters
+            lot = filters.get('LOT_SIZE')
+            if not lot:
+                return quantity
+            step = Decimal(lot['stepSize'])
+            if step <= 0:
+                return quantity
+            value = (Decimal(str(quantity)) / step).to_integral_value(rounding=ROUND_DOWN) * step
+            if value < Decimal(lot['minQty']):
+                return 0.0
+            return float(value)
+        except Exception as e:
+            logger.warning(f"No se pudo redondear la cantidad: {e}")
+            return quantity
+
     def place_order(self, symbol, side, quantity, price=None):
         """Place a market or limit order."""
+        quantity = self._round_quantity(symbol, quantity)
+        if quantity <= 0:
+            logger.error(f"Cantidad inválida para {symbol}: por debajo del LOT_SIZE mínimo.")
+            return {'status': 'ERROR', 'message': 'quantity below LOT_SIZE'}
         if self.dry_run:
             logger.info(f"[DRY RUN] Would place {side} order: {quantity} {symbol} at {price or 'market'}")
             return {'status': 'DRY_RUN', 'side': side, 'quantity': quantity}

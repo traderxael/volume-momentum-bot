@@ -10,7 +10,7 @@ Automated trading bot using Volume Momentum strategy (RSI of Volume + EMA crosso
 - RSI of Volume indicator
 - EMA trend confirmation
 - Price momentum filter
-- Risk management (1% per trade, 2% SL, 4% TP)
+- Risk management (1% per trade, 2% SL, 4% TP, capped to spot balance)
 - Binance API integration
 - Backtesting module
 - Dry-run mode for safe testing
@@ -40,7 +40,19 @@ Sell when: RSI Vol > 70 AND Volume > 1.5x avg AND Momentum < 0 AND Trend = Down
 - 1% risk per trade
 - 2% stop loss
 - 4% take profit (2:1 R:R)
-- Cooldown between signals
+- Position size capped to the available spot balance
+
+## Tests
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+## Limitaciones conocidas
+
+- Sin límite de pérdida diaria ni cooldown entre señales (pendiente).
+- El backtest no descuenta comisiones; solo aplica slippage de entrada.
+- No validado en testnet con órdenes reales.
 
 ## License
 CC BY-NC 4.0 — uso no comercial. Para uso comercial, ver `SELLING.md`.

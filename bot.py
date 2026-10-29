@@ -34,10 +34,10 @@ class TradingBot:
             stop_loss_pct=self.config.get('STOP_LOSS_PCT', 0.02),
             take_profit_pct=self.config.get('TAKE_PROFIT_PCT', 0.04)
         )
-        self.binance = BinanceConnector()
+        self.dry_run = self.config.get('DRY_RUN', True)
+        self.binance = BinanceConnector(dry_run=self.dry_run)
         self.symbol = self.config.get('SYMBOL', 'BTCUSDT')
         self.timeframe = self.config.get('TIMEFRAME', '1h')
-        self.dry_run = self.config.get('DRY_RUN', True)
         self.active_position = None
         self.trade_log = []
 
@@ -71,7 +71,11 @@ class TradingBot:
             return None
 
         side = 'BUY' if signal == 1 else 'SELL'
-        position_size = self.risk.calculate_position_size(1000, price)  # Will use real balance in production
+        balance = self.binance.get_balance().get('USDT', 0.0)
+        if balance <= 0:
+            logger.error("No hay balance USDT disponible. Se omite la operación.")
+            return None
+        position_size = self.risk.calculate_position_size(balance, price)
 
         if position_size <= 0:
             logger.warning("Position size is 0. Skipping trade.")
