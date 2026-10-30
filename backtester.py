@@ -19,6 +19,7 @@ class Backtester:
         balance = self.initial_balance
         position = None  # None, 'long', or 'short'
         entry_price = 0
+        entry_size = 0
         entry_idx = 0
 
         for i in range(len(df)):
@@ -33,7 +34,9 @@ class Backtester:
 
                 if sl_hit or tp_hit:
                     exit_price = current_price
-                    pnl = self._calculate_pnl(exit_price, entry_price, position)
+                    pnl, commission = self._calculate_pnl(
+                        exit_price, entry_price, position, entry_size
+                    )
                     balance += pnl
                     self.trades.append({
                         'entry_idx': entry_idx,
@@ -41,7 +44,9 @@ class Backtester:
                         'entry_price': entry_price,
                         'exit_price': exit_price,
                         'side': position,
+                        'size': entry_size,
                         'pnl': pnl,
+                        'commission': commission,
                         'balance': balance,
                         'reason': 'SL' if sl_hit else 'TP'
                     })
@@ -56,25 +61,30 @@ class Backtester:
                 if position_size > 0 and balance > 10:  # Min balance check
                     position = 'long' if signal == 1 else 'short'
                     entry_price = self.risk.calculate_entry(current_price, position)
+                    # El tamano se guarda: el P&L se calcula con el tamano que
+                    # se abrio, no con uno recalculado sobre el balance inicial.
+                    entry_size = position_size
                     entry_idx = i
 
         return self._generate_report()
 
-    def _calculate_pnl(self, exit_price, entry_price, side):
-        """Calculate profit/loss for a trade."""
+    def _calculate_pnl(self, exit_price, entry_price, side, quantity):
+        """PnL de la operacion: el bruto menos las comisiones. Devuelve (pnl, comision)."""
         if side == 'long':
-            return (exit_price - entry_price) * self.risk.calculate_position_size(
-                self.initial_balance, entry_price
-            )
+            gross = (exit_price - entry_price) * quantity
         else:
-            return (entry_price - exit_price) * self.risk.calculate_position_size(
-                self.initial_balance, entry_price
-            )
+            gross = (entry_price - exit_price) * quantity
+        commission = self.risk.calculate_commission(entry_price, exit_price, quantity)
+        return gross - commission, commission
 
     def _generate_report(self):
         """Generate backtest report."""
         if len(self.trades) == 0:
-            return {'total_trades': 0, 'message': 'No trades executed'}
+            return {
+                'total_trades': 0,
+                'total_commission': 0.0,
+                'message': 'No trades executed'
+            }
 
         trades_df = pd.DataFrame(self.trades)
         wins = trades_df[trades_df['pnl'] > 0]
@@ -86,6 +96,8 @@ class Backtester:
             'losing_trades': len(losses),
             'win_rate': len(wins) / len(self.trades) * 100,
             'total_pnl': trades_df['pnl'].sum(),
+            # Lo que se fue en comisiones: sin este numero el informe miente.
+            'total_commission': trades_df['commission'].sum() if 'commission' in trades_df.columns else 0.0,
             'avg_win': wins['pnl'].mean() if len(wins) > 0 else 0,
             'avg_loss': losses['pnl'].mean() if len(losses) > 0 else 0,
             'max_drawdown': (self.initial_balance - trades_df['balance'].min()) / self.initial_balance * 100,
