@@ -87,16 +87,21 @@ class BinanceConnector:
             logger.error(f"Error getting balance: {e}")
             return {}
 
+    def _symbol_filters(self, symbol):
+        """Filtros del simbolo en Binance, con cache por simbolo."""
+        filters = self._filters.get(symbol)
+        if filters is None:
+            info = self.client.get_symbol_info(symbol)
+            filters = {f['filterType']: f for f in (info or {}).get('filters', [])}
+            self._filters[symbol] = filters
+        return filters
+
     def _round_quantity(self, symbol, quantity):
         """Round quantity down to the symbol LOT_SIZE step."""
         if self.client is None:
             return quantity
         try:
-            filters = self._filters.get(symbol)
-            if filters is None:
-                info = self.client.get_symbol_info(symbol)
-                filters = {f['filterType']: f for f in (info or {}).get('filters', [])}
-                self._filters[symbol] = filters
+            filters = self._symbol_filters(symbol)
             lot = filters.get('LOT_SIZE')
             if not lot:
                 return quantity
@@ -111,12 +116,75 @@ class BinanceConnector:
             logger.warning(f"No se pudo redondear la cantidad: {e}")
             return quantity
 
+    def _min_notional(self, symbol):
+        """El MIN_NOTIONAL del simbolo (5 USDT en BTCUSDT). None si no se sabe."""
+        if self.client is None:
+            return None
+        try:
+            filters = self._symbol_filters(symbol)
+        except Exception as e:
+            logger.warning(f"No se pudieron leer los filtros de {symbol}: {e}")
+            return None
+        min_notional = filters.get('MIN_NOTIONAL')
+        if not min_notional:
+            return None
+        try:
+            value = float(min_notional.get('minNotional', 0))
+        except (TypeError, ValueError):
+            return None
+        return value if value > 0 else None
+
+    def _reference_price(self, symbol, price):
+        """El precio contra el que se mide el notional (el ultimo si es a mercado)."""
+        if price is not None:
+            try:
+                return float(price)
+            except (TypeError, ValueError):
+                return None
+        if self.client is None:
+            return None
+        try:
+            ticker = self.client.get_symbol_ticker(symbol)
+            return float(ticker['price'])
+        except Exception as e:
+            logger.warning(f"No se pudo obtener el precio de {symbol}: {e}")
+            return None
+
+    def _validate_notional(self, symbol, quantity, price):
+        """True si la orden cumple el MIN_NOTIONAL del simbolo.
+
+        El LOT_SIZE mira la CANTIDAD; el MIN_NOTIONAL mira el VALOR. Una orden
+        de 0.01 BTC cumple el LOT_SIZE pero vale 1 USDT, y Binance la rebota.
+        """
+        min_notional = self._min_notional(symbol)
+        if not min_notional:
+            return True
+        ref_price = self._reference_price(symbol, price)
+        if ref_price is None or ref_price <= 0:
+            # Sin precio no hay forma de medir el notional: no se bloquea la
+            # orden, pero queda dicho en el log.
+            logger.warning(f"No se pudo medir el notional de {symbol}: se envia la orden.")
+            return True
+        notional = quantity * ref_price
+        if notional < min_notional:
+            logger.error(
+                f"Orden rechazada: notional {notional:.4f} USDT < MIN_NOTIONAL "
+                f"{min_notional} USDT en {symbol}."
+            )
+            return False
+        return True
+
     def place_order(self, symbol, side, quantity, price=None):
         """Place a market or limit order."""
         quantity = self._round_quantity(symbol, quantity)
         if quantity <= 0:
             logger.error(f"Cantidad inválida para {symbol}: por debajo del LOT_SIZE mínimo.")
             return {'status': 'ERROR', 'message': 'quantity below LOT_SIZE'}
+        if not self._validate_notional(symbol, quantity, price):
+            return {
+                'status': 'ERROR',
+                'message': f'notional below MIN_NOTIONAL for {symbol}'
+            }
         if self.dry_run:
             logger.info(f"[DRY RUN] Would place {side} order: {quantity} {symbol} at {price or 'market'}")
             return {'status': 'DRY_RUN', 'side': side, 'quantity': quantity}
